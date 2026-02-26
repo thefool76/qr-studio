@@ -1,8 +1,6 @@
 {
   "id": "454b55",
-  "name": "Qr Code Generator",
-  "modes": [
-    "canvas"
-  ],
+  "name": "QR Code Studio",
+  "modes": ["canvas"],
   "icon": "/icon.svg"
 }

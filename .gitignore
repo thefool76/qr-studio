@@ -27,6 +27,22 @@ yarn-error.log\*
 # local env files
 
 .env\*.local
+.env
+.env.*
+!.env.example
+
+# deployment
+
+.vercel
+
+# editor and temp files
+
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
 
 # Packed plugin
 
