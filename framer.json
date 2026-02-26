@@ -1,0 +1,8 @@
+{
+  "id": "454b55",
+  "name": "Qr Code Generator",
+  "modes": [
+    "canvas"
+  ],
+  "icon": "/icon.svg"
+}
