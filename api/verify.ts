@@ -23,13 +23,21 @@ const ALLOWED_ORIGINS = ["https://framer.com", "https://www.framer.com", "null"]
 function applyCors(req: RequestLike, res: ResponseLike): void {
     const rawOrigin = req.headers?.origin
     const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin
-    const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "https://framer.com"
+    const allowedOrigin = isAllowedOrigin(origin) ? origin! : "https://framer.com"
 
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin)
     res.setHeader("Vary", "Origin")
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
     res.setHeader("Access-Control-Max-Age", "86400")
+}
+
+function isAllowedOrigin(origin?: string): boolean {
+    if (!origin) return false
+    if (ALLOWED_ORIGINS.includes(origin)) return true
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return true
+    if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return true
+    return false
 }
 
 interface VerifyResponse {
