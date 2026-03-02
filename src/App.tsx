@@ -7,12 +7,15 @@ import { PaywallDialog } from "./components/PaywallDialog"
 import { StylePanel } from "./components/StylePanel"
 import { Badge } from "./components/ui"
 import {
-    clearStoredLicense,
-    getStoredLicense,
-    setStoredLicense,
-    shouldRecheckLicense,
-    verifyLicenseKey,
+    clearStoredLicenseKey,
+    getEmptyLicenseState,
+    getLicenseErrorMessage,
+    getStoredLicenseKey,
+    setStoredLicenseKey,
+    toLicenseState,
+    validatePolarLicenseDetailed,
 } from "./lib/license"
+import { runLicenseActivationDiagnostics } from "./lib/licenseDiagnostics"
 import {
     analyzeScanSafety,
     buildQrPayload,
@@ -97,7 +100,13 @@ export function App() {
     const [logo, setLogo] = useState<LogoState>(INITIAL_LOGO)
     const [exportSize, setExportSize] = useState(512)
     const [dialogOpen, setDialogOpen] = useState(false)
-    const [license, setLicense] = useState<LicenseState>(() => getStoredLicense())
+    const [license, setLicense] = useState<LicenseState>(() => {
+        const storedKey = getStoredLicenseKey()
+        const state = getEmptyLicenseState()
+        return storedKey ? { ...state, key: storedKey } : state
+    })
+    const [activationStatus, setActivationStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+    const [activationMessage, setActivationMessage] = useState("")
     const [theme, setTheme] = useState(getFramerTheme())
     const [previewSrc, setPreviewSrc] = useState("")
     const [previewError, setPreviewError] = useState("")
@@ -112,6 +121,13 @@ export function App() {
         const observer = new MutationObserver(() => setTheme(getFramerTheme()))
         observer.observe(document.body, { attributes: true, attributeFilter: ["data-framer-theme"] })
         return () => observer.disconnect()
+    }, [])
+
+    useEffect(() => {
+        if (!import.meta.env.DEV) return
+
+        ;(window as Window & { runLicenseActivationDiagnostics?: () => Promise<void> }).runLicenseActivationDiagnostics =
+            runLicenseActivationDiagnostics
     }, [])
 
     useEffect(() => {
@@ -149,17 +165,34 @@ export function App() {
     }, [isPro, logo.dataUrl])
 
     useEffect(() => {
-        if (!license.key || !shouldRecheckLicense(license)) return
+        const storedKey = getStoredLicenseKey()
+        if (!storedKey) return
+
+        let cancelled = false
+
         void (async () => {
-            try {
-                const verified = await verifyLicenseKey(license.key)
-                setLicense(verified)
-                setStoredLicense(verified)
-            } catch {
-                // Keep existing state on transient verify failures.
+            // Silent revalidation on plugin load keeps local persistence secure.
+            const result = await validatePolarLicenseDetailed(storedKey)
+            if (cancelled) return
+
+            if (result.valid) {
+                setLicense(toLicenseState(result))
+                return
             }
+
+            clearStoredLicenseKey()
+            setLicense({
+                ...getEmptyLicenseState(),
+                key: "",
+                lastChecked: new Date().toISOString(),
+                expiresAt: result.expiresAt,
+            })
         })()
-    }, [license])
+
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     const renderInput: QrRenderInput = useMemo(
         () => ({
@@ -333,27 +366,46 @@ export function App() {
         }
     }
 
-    const verifyLicense = async (key: string) => {
-        try {
-            const verified = await verifyLicenseKey(key)
-            setLicense(verified)
-            setStoredLicense(verified)
-            notify(verified.valid ? "License verified. Pro unlocked." : "License is not valid.", verified.valid ? "info" : "error")
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "Verification failed"
-            notify(message, "error")
+    const resetActivationFeedback = () => {
+        if (activationStatus === "loading") return
+        setActivationStatus("idle")
+        setActivationMessage("")
+    }
+
+    const activateLicense = async (key: string) => {
+        setActivationStatus("loading")
+        setActivationMessage("")
+
+        const result = await validatePolarLicenseDetailed(key)
+        const checkedAt = new Date().toISOString()
+
+        if (result.valid) {
+            setStoredLicenseKey(result.key)
+            setLicense(toLicenseState(result))
+            setActivationStatus("success")
+            setActivationMessage("Pro activated successfully")
+            notify("License verified. Pro unlocked.")
+            return
         }
+
+        setActivationStatus("error")
+        setActivationMessage(getLicenseErrorMessage(result.errorCode))
+        setLicense((prev) => ({
+            ...prev,
+            key: key.trim(),
+            lastChecked: checkedAt,
+            expiresAt: result.expiresAt,
+        }))
     }
 
     const deactivateLicense = () => {
-        clearStoredLicense()
+        clearStoredLicenseKey()
         setLicense({
-            valid: false,
-            plan: "free",
-            key: "",
+            ...getEmptyLicenseState(),
             lastChecked: new Date().toISOString(),
-            expiresAt: null,
         })
+        setActivationStatus("idle")
+        setActivationMessage("")
         notify("License deactivated")
     }
 
@@ -371,7 +423,14 @@ export function App() {
                     <h1>QR Code Studio</h1>
                     <Badge label={isPro ? "Pro" : "Free"} variant={isPro ? "default" : "muted"} />
                 </div>
-                <button type="button" className="primary-button" onClick={() => setDialogOpen(true)}>
+                <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => {
+                        resetActivationFeedback()
+                        setDialogOpen(true)
+                    }}
+                >
                     {isPro ? "Manage License" : "Unlock Pro"}
                 </button>
             </header>
@@ -484,9 +543,12 @@ export function App() {
             <PaywallDialog
                 open={dialogOpen}
                 license={license}
+                activationStatus={activationStatus}
+                activationMessage={activationMessage}
                 onClose={() => setDialogOpen(false)}
-                onVerify={verifyLicense}
+                onActivate={activateLicense}
                 onDeactivate={deactivateLicense}
+                onResetFeedback={resetActivationFeedback}
             />
 
             <footer className="app-footer">

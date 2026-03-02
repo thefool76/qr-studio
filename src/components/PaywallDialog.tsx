@@ -6,14 +6,25 @@ import { Badge } from "./ui"
 interface PaywallDialogProps {
     open: boolean
     license: LicenseState
+    activationStatus: "idle" | "loading" | "success" | "error"
+    activationMessage: string
     onClose: () => void
-    onVerify: (key: string) => Promise<void>
+    onActivate: (key: string) => Promise<void>
     onDeactivate: () => void
+    onResetFeedback: () => void
 }
 
-export function PaywallDialog({ open, license, onClose, onVerify, onDeactivate }: PaywallDialogProps) {
+export function PaywallDialog({
+    open,
+    license,
+    activationStatus,
+    activationMessage,
+    onClose,
+    onActivate,
+    onDeactivate,
+    onResetFeedback,
+}: PaywallDialogProps) {
     const [licenseKey, setLicenseKey] = useState(license.key)
-    const [verifying, setVerifying] = useState(false)
 
     useEffect(() => {
         if (open) {
@@ -22,6 +33,10 @@ export function PaywallDialog({ open, license, onClose, onVerify, onDeactivate }
     }, [open, license.key])
 
     if (!open) return null
+
+    const isLoading = activationStatus === "loading"
+    const isSuccess = activationStatus === "success"
+    const isError = activationStatus === "error"
 
     return (
         <div className="dialog-overlay" role="dialog" aria-modal="true">
@@ -58,24 +73,35 @@ export function PaywallDialog({ open, license, onClose, onVerify, onDeactivate }
                         type="text"
                         placeholder="POLAR-XXXX"
                         value={licenseKey}
-                        onChange={(event) => setLicenseKey(event.target.value)}
+                        onChange={(event) => {
+                            setLicenseKey(event.target.value)
+                            onResetFeedback()
+                        }}
                     />
                 </label>
+                {(isSuccess || isError) && activationMessage ? (
+                    <p className={`activation-feedback ${isSuccess ? "is-success" : "is-error"}`} role={isError ? "alert" : "status"}>
+                        {activationMessage}
+                    </p>
+                ) : null}
+                <p className="support-line">
+                    Need help with license activation? Contact{" "}
+                    <a href="mailto:heybhaveshmishra@gmail.com">heybhaveshmishra@gmail.com</a>
+                </p>
                 <div className="button-row">
                     <button
                         type="button"
                         className="primary-button verify-button"
-                        disabled={verifying || !licenseKey.trim()}
-                        onClick={async () => {
-                            setVerifying(true)
-                            try {
-                                await onVerify(licenseKey.trim())
-                            } finally {
-                                setVerifying(false)
-                            }
-                        }}
+                        disabled={isLoading || !licenseKey.trim()}
+                        onClick={() => void onActivate(licenseKey.trim())}
                     >
-                        {verifying ? "Verifying..." : "Verify"}
+                        {isLoading ? (
+                            <>
+                                <span className="button-spinner" aria-hidden="true" /> Activating...
+                            </>
+                        ) : (
+                            "Activate Pro"
+                        )}
                     </button>
                     <button type="button" className="secondary-button" onClick={onDeactivate}>
                         Deactivate

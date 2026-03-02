@@ -32,8 +32,9 @@ Set environment variables before running/building:
 
 - `VITE_POLAR_CHECKOUT_URL`: Polar checkout URL opened by the Unlock dialog (set this to your `$29 one-time` product checkout link).
 - `VITE_VERIFY_ENDPOINT`: Server endpoint used to validate license keys (`/api/verify` by default).
-
-`TEST-...` keys are accepted only during development builds.
+- `VITE_LICENSE_VERIFY_TIMEOUT_MS` (optional): client-side verify timeout in milliseconds. Default: `900`.
+- `VITE_TEST_VALID_LICENSE_KEY` (optional): used by diagnostics utility.
+- `VITE_TEST_EXPIRED_LICENSE_KEY` (optional): used by diagnostics utility.
 
 ### One-time purchase setup (`$29`)
 
@@ -47,13 +48,19 @@ Set environment variables before running/building:
 
 - Use [`api/verify.ts`](/Users/kami/Documents/qr-code-generator/api/verify.ts) as the serverless stub.
 - For production, set:
-  - `POLAR_ORGANIZATION_ID` (required)
-  - `POLAR_ACCESS_TOKEN` (optional but recommended for private validation path)
+  - `POLAR_API_KEY` or `POLAR_ACCESS_TOKEN` (required; server-side only)
+  - `POLAR_ORGANIZATION_ID` (required for `license-keys/validate`)
+  - `POLAR_VERIFY_TIMEOUT_MS` (optional): timeout for Polar API request in milliseconds. Default: `1200`.
 - Endpoint behavior:
-  - With both vars: uses Polar private validate API.
-  - With only `POLAR_ORGANIZATION_ID`: uses Polar public validation API.
-  - With neither: falls back to local demo validation (`POLAR-...` keys).
-- Never ship Polar secret keys in plugin frontend code.
+  - Calls `POST https://api.polar.sh/v1/license-keys/validate` with `Authorization: Bearer $POLAR_API_KEY`.
+  - Sends `{ key, organization_id }` in JSON body.
+  - Returns normalized statuses (`active`, `expired`, `invalid`) for plugin UI handling.
+- Never ship Polar secret keys in plugin frontend code. Only your serverless function should read `POLAR_API_KEY`.
+
+## Reviewer key
+
+- Hardcoded fallback key: `FRAMER-REVIEW-PRO-2026`.
+- If this key is entered, Pro unlocks immediately without an API call.
 
 ## Test checklist
 
@@ -65,6 +72,11 @@ Set environment variables before running/building:
 6. Scan-safety warnings update with low contrast and low quiet zone settings.
 7. License verify/deactivate state persists across plugin reloads.
 8. UI is readable in both `light` and `dark` Framer themes.
+9. Open browser devtools and run `window.runLicenseActivationDiagnostics()` to log:
+   - license valid response (when `VITE_TEST_VALID_LICENSE_KEY` is set),
+   - invalid response,
+   - expired response (when `VITE_TEST_EXPIRED_LICENSE_KEY` is set),
+   - network error response.
 
 ## Browser/platform checks
 
