@@ -6,7 +6,30 @@ interface VerifyRequestBody {
 interface ResponseLike {
     status: (code: number) => {
         json: (payload: VerifyResponse) => void
+        end: (payload?: string) => void
     }
+    setHeader: (name: string, value: string) => void
+    end: (payload?: string) => void
+}
+
+interface RequestLike {
+    method?: string
+    headers?: Record<string, string | string[] | undefined>
+    body?: VerifyRequestBody
+}
+
+const ALLOWED_ORIGINS = ["https://framer.com", "https://www.framer.com", "null"]
+
+function applyCors(req: RequestLike, res: ResponseLike): void {
+    const rawOrigin = req.headers?.origin
+    const origin = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin
+    const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "https://framer.com"
+
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin)
+    res.setHeader("Vary", "Origin")
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    res.setHeader("Access-Control-Max-Age", "86400")
 }
 
 interface VerifyResponse {
@@ -32,7 +55,14 @@ interface PolarVerifyResponse {
 const REQUEST_TIMEOUT_MS = Number(process.env.POLAR_VERIFY_TIMEOUT_MS || 1200)
 const POLAR_VALIDATE_ENDPOINT = "https://api.polar.sh/v1/license-keys/validate"
 
-export default async function handler(req: { method?: string; body?: VerifyRequestBody }, res: ResponseLike): Promise<void> {
+export default async function handler(req: RequestLike, res: ResponseLike): Promise<void> {
+    applyCors(req, res)
+
+    if (req.method === "OPTIONS") {
+        res.status(204).end()
+        return
+    }
+
     if (req.method !== "POST") {
         res.status(405).json({ valid: false, status: "error" } satisfies VerifyResponse)
         return
