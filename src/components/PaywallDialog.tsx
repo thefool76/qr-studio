@@ -25,6 +25,7 @@ export function PaywallDialog({
     onResetFeedback,
 }: PaywallDialogProps) {
     const [licenseKey, setLicenseKey] = useState(license.key)
+    const showActivationForm = !license.valid
 
     useEffect(() => {
         if (open) {
@@ -61,52 +62,65 @@ export function PaywallDialog({
                     <li>Gradient styling, logo overlays, and Brand Gradient preset</li>
                     <li>High-resolution PNG up to 4096px, SVG export, and Add to Canvas</li>
                 </ul>
-                <div className="paywall-actions">
-                    <a href={POLAR_CHECKOUT_URL} target="_blank" rel="noreferrer" className="primary-button inline-button">
-                        Buy Pro - {PRO_PRICE_LABEL}
-                    </a>
-                    <span className="hint-text">After checkout, paste your Polar license key below.</span>
-                </div>
-                <label className="field">
-                    <span className="field-label">License key</span>
-                    <input
-                        type="text"
-                        placeholder="POLAR-XXXX"
-                        value={licenseKey}
-                        onChange={(event) => {
-                            setLicenseKey(event.target.value)
-                            onResetFeedback()
-                        }}
-                    />
-                </label>
-                {(isSuccess || isError) && activationMessage ? (
-                    <p className={`activation-feedback ${isSuccess ? "is-success" : "is-error"}`} role={isError ? "alert" : "status"}>
-                        {activationMessage}
-                    </p>
+                {showActivationForm ? (
+                    <>
+                        <div className="paywall-actions">
+                            <a href={POLAR_CHECKOUT_URL} target="_blank" rel="noreferrer" className="primary-button inline-button">
+                                Buy Pro - {PRO_PRICE_LABEL}
+                            </a>
+                            <span className="hint-text">After checkout, paste your Polar license key below.</span>
+                        </div>
+                        <label className="field">
+                            <span className="field-label">License key</span>
+                            <input
+                                type="text"
+                                placeholder="POLAR-XXXX"
+                                value={licenseKey}
+                                onChange={(event) => {
+                                    setLicenseKey(event.target.value)
+                                    onResetFeedback()
+                                }}
+                            />
+                        </label>
+                        {(isSuccess || isError) && activationMessage ? (
+                            <p className={`activation-feedback ${isSuccess ? "is-success" : "is-error"}`} role={isError ? "alert" : "status"}>
+                                {activationMessage}
+                            </p>
+                        ) : null}
+                        <p className="support-line">
+                            Need help with license activation? Contact{" "}
+                            <a href="mailto:heybhaveshmishra@gmail.com">heybhaveshmishra@gmail.com</a>
+                        </p>
+                        <div className="button-row">
+                            <button
+                                type="button"
+                                className="primary-button verify-button"
+                                disabled={isLoading || !licenseKey.trim()}
+                                onClick={() => void onActivate(licenseKey.trim())}
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <span className="button-spinner" aria-hidden="true" /> Activating...
+                                    </>
+                                ) : (
+                                    "Activate Pro"
+                                )}
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <div className="active-license-card">
+                        <p className="active-license-title">Pro is active on this device</p>
+                        <p className="active-license-subtitle">No action needed. All Pro features are unlocked.</p>
+                    </div>
+                )}
+                {license.valid ? (
+                    <div className="button-row">
+                        <button type="button" className="secondary-button" onClick={onDeactivate}>
+                            Deactivate
+                        </button>
+                    </div>
                 ) : null}
-                <p className="support-line">
-                    Need help with license activation? Contact{" "}
-                    <a href="mailto:heybhaveshmishra@gmail.com">heybhaveshmishra@gmail.com</a>
-                </p>
-                <div className="button-row">
-                    <button
-                        type="button"
-                        className="primary-button verify-button"
-                        disabled={isLoading || !licenseKey.trim()}
-                        onClick={() => void onActivate(licenseKey.trim())}
-                    >
-                        {isLoading ? (
-                            <>
-                                <span className="button-spinner" aria-hidden="true" /> Activating...
-                            </>
-                        ) : (
-                            "Activate Pro"
-                        )}
-                    </button>
-                    <button type="button" className="secondary-button" onClick={onDeactivate}>
-                        Deactivate
-                    </button>
-                </div>
                 <div className="status-line">
                     <Badge label={license.valid ? "Pro Active" : "Free"} variant={license.valid ? "default" : "muted"} />
                     {license.lastChecked ? <span>Last checked: {formatDate(license.lastChecked)}</span> : null}
